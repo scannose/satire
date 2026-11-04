@@ -20,21 +20,40 @@ const language = {
   "dim9_desc": "Buy a ninth dimension to produce more eigh- wait, I thought those didn't exist...?",
 };
 
-const dimCosts = [1/3, 1, 10, 100, 1e4, 1e6, 1e9, 1e15, Infinity];
-const dimCreep = [3, 4, 5, 6, 7, 8, 9, 10, 100];
+const dimCosts = [1/3, 1, 10, 100, 1e4, 1e6, 1e9, 1e12, Decimal.pow(2, 1024)];
+const dimCreep = [3, 4, 5, 6, 7, 8, 9, 10, Decimal.pow(2, 256)];
 
 const game = {
-  satire: 0,
-  dims: [1, 0, 0, 0, 0, 0, 0, 0, 0],
-  dimUpgrades: [1, 0, 0, 0, 0, 0, 0, 0, 0]
+  satire: new Decimal(0),
+  dims: [new Decimal(1), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0)],
+  dimUpgrades: [1, 0, 0, 0, 0, 0, 0, 0, 0],
+  dim9prgs: new Decimal(1)
 };
 
+const getDims = d => {
+  return d == 7 ? game.dims[7].plus(Decimal.log2(game.dim9prgs)) : game.dims[d];
+};
+
+const getDimCost = d => {
+  return Decimal.mul(dimCosts[d], Decimal.pow(dimCreep[d], game.dimUpgrades[d]));
+};
+
+const formatDecimal = x => {
+  let y = new Decimal(x);
+  if (y.lt(1e3)) return x.toFixed(2);
+  if (y.lt(1e6)) return `${y.dividedBy(1e3).toFixed(2)}k`;
+  if (y.lt(1e9)) return `${y.dividedBy(1e6).toFixed(2)}m`;
+  if (y.lt(1e12)) return `${y.dividedBy(1e9).toFixed(2)}b`;
+  if (y.lt(1e15)) return `${y.dividedBy(1e12).toFixed(2)}t`;
+  return x.toPrecision(3);
+}
+
 const buyDim = d => {
-  if (game.satire >= dimCosts[d] * Math.pow(dimCreep[d], game.dimUpgrades[d])) {
-    game.satire -= dimCosts[d] * Math.pow(dimCreep[d], game.dimUpgrades[d]);
-    game.dims[d]++;
+  if (game.satire.gte(getDimCost(d))) {
+    game.satire = game.satire.minus(getDimCost(d));
+    game.dims[d] = game.dims[d].add(1);
     game.dimUpgrades[d]++;
-    document.getElementById(`dim${d + 1}_buy`).innerHTML = `Buy ${language["dim" + (d + 1)]} (${dimCosts[d] * Math.pow(dimCreep[d], game.dimUpgrades[d])} ${language.satire})`;
+    document.getElementById(`dim${d + 1}_buy`).innerHTML = `Buy ${language["dim" + (d + 1)]} (${formatDecimal(getDimCost(d))} ${language.satire})`;
     if (game.dimUpgrades[d] == 1 && d < 8) {
       document.getElementById(`dim${d + 2}`).hidden = false;
     }
@@ -47,14 +66,15 @@ const update = () => {
   const dt = (now - time) / 1000;
   time = now;
 
-  game.satire += game.dims[0] * game.dimUpgrades[0] * dt * 0.1;
-  for (let i = 0; i < 7; i++) {
-    game.dims[i] += game.dims[i + 1] * Math.pow(1.25, game.dimUpgrades[i + 1] - 1) * dt * 0.01;
+  game.satire = game.satire.plus(game.dims[0].times(game.dimUpgrades[0] * dt * 0.1));
+  for (let d = 0; d < 7; d++) {
+    game.dims[d] = game.dims[d].plus(getDims(d + 1).times(Math.pow(1.25, game.dimUpgrades[d] - 1) * dt * 0.1));
   }
+  game.dim9prgs = game.dim9prgs.plus(game.dims[8].times(game.dimUpgrades[8] * dt * 0.001));
 
-  document.getElementById("satirePoints").innerHTML = `You have ${game.satire.toFixed(2)} ${language.satire}.`;
-  for (let i = 1; i <= 9; i++) {
-    document.getElementById(`dim${i}_display`).innerHTML = `You have ${game.dims[i - 1].toFixed(2)} (${game.dimUpgrades[i - 1]}) ${language["dim" + i]}.`;
+  document.getElementById("satirePoints").innerHTML = `You have ${formatDecimal(game.satire)} ${language.satire}.`;
+  for (let d = 0; d <= 8; d++) {
+    document.getElementById(`dim${d + 1}_display`).innerHTML = `You have ${formatDecimal(getDims(d))} (${game.dimUpgrades[d]}) ${language[`dim${d + 1}`]}.`;
   }
 
   setTimeout(update, 100);
@@ -67,16 +87,21 @@ const save = () => {
 const load = () => {
   if (localStorage["satire"]) {
     Object.assign(game, JSON.parse(localStorage["satire"]));
+    game.satire = new Decimal(game.satire);
+    for (let d = 0; d <= 8; d++) {
+      game.dims[d] = new Decimal(game.dims[d]);
+    }
+    game.dim9prgs = new Decimal(game.dim9prgs);
   }
 };
 
 const init = () => {
   load();
-  for (let i = 1; i <= 9; i++) {
-    document.getElementById(`dim${i}`).hidden = !(i == 1 || game.dimUpgrades[i - 2]);
-    document.getElementById(`dim${i}_buy`).onclick = (() => buyDim(i - 1));
-    document.getElementById(`dim${i}_buy`).innerHTML = `Buy ${language["dim" + i]} (${dimCosts[i - 1] * Math.pow(dimCreep[i - 1], game.dimUpgrades[i - 1])} ${language.satire})`;
-    document.getElementById(`dim${i}_desc`).innerHTML = language[`dim${i}_desc`];
+  for (let d = 0; d <= 8; d++) {
+    document.getElementById(`dim${d + 1}`).hidden = d && !game.dimUpgrades[d - 1];
+    document.getElementById(`dim${d + 1}_buy`).onclick = (() => buyDim(d));
+    document.getElementById(`dim${d + 1}_buy`).innerHTML = `Buy ${language[`dim${d + 1}`]} (${formatDecimal(getDimCost(d))} ${language.satire})`;
+    document.getElementById(`dim${d + 1}_desc`).innerHTML = language[`dim${d + 1}_desc`];
   }
 
   time = Date.now();
