@@ -1,0 +1,20 @@
+.dim {
+  border: 1px solid black;
+  margin: 5px 0px;
+  background-color: #efefef;
+}
+
+.dimdesc {
+  display: none;
+  background-color: #efefef;
+  margin: 0px;
+}
+
+div .dimdisplay:hover + .dimdesc {
+  display: block;
+  position: absolute;
+}
+
+#toolbar {
+  display: inline;
+}

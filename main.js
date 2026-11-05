@@ -20,22 +20,27 @@ const language = {
   "dim9_desc": "Buy a ninth dimension to produce more eigh- wait, I thought those didn't exist...?",
 };
 
-const dimCosts = [1/3, 1, 10, 100, 1e4, 1e6, 1e9, 1e12, Decimal.pow(2, 1024)];
+const dimCosts = [1/3, 1, 10, 100, 1e4, 1e6, 1e10, 1e15, Decimal.pow(2, 1024)];
 const dimCreep = [3, 4, 5, 6, 7, 8, 9, 10, Decimal.pow(2, 256)];
 
 const game = {
   satire: new Decimal(0),
   dims: [new Decimal(1), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0), new Decimal(0)],
   dimUpgrades: [1, 0, 0, 0, 0, 0, 0, 0, 0],
-  dim9prgs: new Decimal(1)
+  dim9prgs: new Decimal(1),
+  bulk: false
 };
 
 const getDims = d => {
-  return d == 7 ? game.dims[7].plus(Decimal.log2(game.dim9prgs)) : game.dims[d];
+  return d == 7 ? game.dims[7].plus(Decimal.mul(Decimal.log2(game.dim9prgs), 10)) : game.dims[d];
 };
 
+const getDimMult = d => {
+  return Decimal.pow(1.25, Math.max(game.dimUpgrades[d] - 1, 0)).times(d == 8 ? 0.001 : 0.1);
+}
+
 const getDimCost = d => {
-  return Decimal.mul(dimCosts[d], Decimal.pow(dimCreep[d], game.dimUpgrades[d]));
+  return Decimal.mul(dimCosts[d], Decimal.pow(Decimal.mul(dimCreep[d], d != 8 ? Math.max(game.dimUpgrades[d] / 500, 1) : 1), game.dimUpgrades[d]));
 };
 
 const formatDecimal = x => {
@@ -46,7 +51,7 @@ const formatDecimal = x => {
   if (y.lt(1e12)) return `${y.dividedBy(1e9).toFixed(2)}b`;
   if (y.lt(1e15)) return `${y.dividedBy(1e12).toFixed(2)}t`;
   return x.toPrecision(3);
-}
+};
 
 const buyDim = d => {
   if (game.satire.gte(getDimCost(d))) {
@@ -57,7 +62,13 @@ const buyDim = d => {
     if (game.dimUpgrades[d] == 1 && d < 8) {
       document.getElementById(`dim${d + 2}`).hidden = false;
     }
+    return true;
   }
+  return false;
+};
+
+const buyMaxDim = d => {
+  while (buyDim(d));
 };
 
 let time;
@@ -66,19 +77,19 @@ const update = () => {
   const dt = (now - time) / 1000;
   time = now;
 
-  game.satire = game.satire.plus(game.dims[0].times(game.dimUpgrades[0] * dt * 0.1));
+  game.satire = game.satire.plus(getDims(0).times(getDimMult(0)).times(dt));
   for (let d = 0; d < 7; d++) {
-    game.dims[d] = game.dims[d].plus(getDims(d + 1).times(Math.pow(1.25, game.dimUpgrades[d] - 1) * dt * 0.1));
+    game.dims[d] = game.dims[d].plus(getDims(d + 1).times(getDimMult(d + 1)).times(dt));
   }
-  game.dim9prgs = game.dim9prgs.plus(game.dims[8].times(game.dimUpgrades[8] * dt * 0.001));
+  game.dim9prgs = game.dim9prgs.plus(getDims(8).times(getDimMult(8)).times(dt));
 
   document.getElementById("satirePoints").innerHTML = `You have ${formatDecimal(game.satire)} ${language.satire}.`;
   for (let d = 0; d <= 8; d++) {
-    document.getElementById(`dim${d + 1}_display`).innerHTML = `You have ${formatDecimal(getDims(d))} (${game.dimUpgrades[d]}) ${language[`dim${d + 1}`]}.`;
+    document.getElementById(`dim${d + 1}_display`).innerHTML = `You have ${formatDecimal(getDims(d))} (${game.dimUpgrades[d]}) ${language[`dim${d + 1}`]}.${d != 8 && game.dimUpgrades[d] >= 500 ? " (softcapped)" : ""}`;
   }
 
   setTimeout(update, 100);
-}
+};
 
 const save = () => {
   localStorage["satire"] = JSON.stringify(game);
@@ -99,10 +110,18 @@ const init = () => {
   load();
   for (let d = 0; d <= 8; d++) {
     document.getElementById(`dim${d + 1}`).hidden = d && !game.dimUpgrades[d - 1];
-    document.getElementById(`dim${d + 1}_buy`).onclick = (() => buyDim(d));
+    document.getElementById(`dim${d + 1}_buy`).onclick = (() => {
+      if (game.bulk) buyMaxDim(d);
+      else buyDim(d);
+    });
     document.getElementById(`dim${d + 1}_buy`).innerHTML = `Buy ${language[`dim${d + 1}`]} (${formatDecimal(getDimCost(d))} ${language.satire})`;
     document.getElementById(`dim${d + 1}_desc`).innerHTML = language[`dim${d + 1}_desc`];
   }
+  document.getElementById("bulk").innerHTML = game.bulk ? "Buying Max" : "Buying 1";
+  document.getElementById("bulk").onclick = () => {
+    game.bulk = !game.bulk;
+    document.getElementById("bulk").innerHTML = game.bulk ? "Buying Max" : "Buying 1";
+  };
 
   time = Date.now();
   update();
