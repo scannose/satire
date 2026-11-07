@@ -4,7 +4,7 @@
   background-color: #efefef;
 }
 
-.dimdesc {
+.dimdesc, #paperclips_desc {
   display: none;
   background-color: #efefef;
   margin: 0px;
@@ -15,18 +15,27 @@
   position: absolute;
 }
 
+#paperclips:hover #paperclips_desc {
+  display: block;
+  position: absolute;
+}
+
 #toolbar {
   display: inline;
 }
 
-#topbar {
+#topbar, #options {
   display: flex;
   align-items: center;
 }
 
-#topbar button {
+#topbar button, #options button {
   width: 80px;
   height: 40px;
   margin: 0px 5px;
   position: relative;
+}
+
+#options {
+  margin-top: 10px;
 }

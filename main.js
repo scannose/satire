@@ -1,4 +1,6 @@
-const language = {
+import { buyShares, sellShares, stockMarketCycle, drawChart } from "./paperclips.js";
+
+export const language = {
   "satire": "Satire Points",
   "dim1": "Parodies",
   "dim1_desc": "Create a parody of an idle game to generate satire points. Each purchase after the first also increases production by 25%.",
@@ -27,9 +29,23 @@ const language = {
   "infinity_desc": "Reset all satire dimensions and upgrades and gain a bonus based on your Ninth Dimensions.",
   "infinity_reset": "Reset",
   "infinityPoints": "placeholders",
+  "paperclips": "Useless Paperclips",
+  "paperclips_desc": "Once a relic found only in one planet, paperclips now make up a third of the universe's matter. Despite being worth less than a speck of dust, they are nevertheless used as intergalactic currency.",
+  "stonk": "Whitecoin",
+  "stonks": "Whitecoins",
+  "buy1": "Buy 1",
+  "buy10": "Buy 10",
+  "buy100": "Buy 100",
+  "sell1": "Sell 1",
+  "sell10": "Sell 10",
+  "sell100": "Sell 100",
   "tab1": "Satire",
   "tab2": "Satire Upgrades",
+  "tab3": "Stock Market",
   "options": "Options",
+  "save": "Save Game",
+  "export": "Export Save",
+  "import": "Import Save"
 };
 
 const dimCosts = [1/3, 1, 10, 100, 1e4, 1e6, 1e9, 1e15, Decimal.pow(2, 1024)];
@@ -43,12 +59,21 @@ const game = {
   dim9prgs: new Decimal(1),
   dimboostsSpent: 0,
   infinityPoints: new Decimal(0),
+  stockMarket: {
+    paperclips: new Decimal(0),
+    price: new Decimal(1),
+    shares: new Decimal(0),
+    trend: 0
+  },
   unlocks: {
     tab2: false,
+    tab3: false,
     infinity: false
   },
   bulk: false
 };
+
+const stockMarketHist = [];
 
 const getDims = d => {
   return d == 7 ? game.dims[7].plus(Decimal.mul(Decimal.log2(game.dim9prgs), 10)) : game.dims[d];
@@ -71,7 +96,7 @@ const getDimboosts = () => {
 
 const getDbUpgradeCost = i => {
   if (i == 0) return 1;
-  return (game.dbUpgrades[i] + 1) * (i == 3 ? 5 : 1);
+  return (game.dbUpgrades[i] + 1) * (i == 3 ? 2 : 1) + (i == 3 ? 8 : 0);
 };
 
 const getDbUpgradeEffect = i => {
@@ -82,7 +107,7 @@ const getDbUpgradeEffect = i => {
   else return "";
 };
 
-const formatDecimal = x => {
+export const formatDecimal = x => {
   let y = new Decimal(x);
   if (y.lt(1e3)) return x.toFixed(2);
   if (y.lt(1e6)) return `${y.dividedBy(1e3).toFixed(2)}k`;
@@ -120,6 +145,8 @@ const buyDbUpgrade = i => {
       for (let d = 0; d <= 8; d++) {
         document.getElementById(`dim${d + 1}_buy`).innerHTML = `Buy ${language["dim" + (d + 1)]} (${formatDecimal(getDimCost(d))} ${language.satire})`;
       }
+    } else if (i == 3) {
+      game.stockMarket.paperclips = game.stockMarket.paperclips.plus(1);
     }
   }
 };
@@ -147,6 +174,10 @@ const update = () => {
     game.unlocks.tab2 = true;
     document.getElementById("tab2").hidden = false;
   }
+  if (!game.unlocks.tab3 && game.stockMarket.paperclips.gt(0)) {
+    game.unlocks.tab3 = true;
+    document.getElementById("tab3").hidden = false;
+  }
   if (!game.unlocks.infinity && game.dimUpgrades[8]) {
     game.unlocks.infinity = true;
     document.getElementById("infinity").hidden = false;
@@ -159,15 +190,22 @@ const save = () => {
   localStorage["satire"] = JSON.stringify(game);
 };
 
+const parseSave = save => {
+  Object.assign(game, JSON.parse(save));
+  game.satire = new Decimal(game.satire);
+  for (let d = 0; d <= 8; d++) {
+    game.dims[d] = new Decimal(game.dims[d]);
+  }
+  game.dim9prgs = new Decimal(game.dim9prgs);
+  game.infinityPoints = new Decimal(game.infinityPoints);
+  game.stockMarket.paperclips = new Decimal(game.stockMarket.paperclips);
+  game.stockMarket.price = new Decimal(game.stockMarket.price);
+  game.stockMarket.shares = new Decimal(game.stockMarket.shares);
+};
+
 const load = () => {
   if (localStorage["satire"]) {
-    Object.assign(game, JSON.parse(localStorage["satire"]));
-    game.satire = new Decimal(game.satire);
-    for (let d = 0; d <= 8; d++) {
-      game.dims[d] = new Decimal(game.dims[d]);
-    }
-    game.dim9prgs = new Decimal(game.dim9prgs);
-    game.infinityPoints = new Decimal(game.infinityPoints);
+    parseSave(localStorage["satire"]);
   }
 };
 
@@ -208,6 +246,33 @@ const initUI = () => {
     initUI();
   };
 
+  document.getElementById("paperclips").innerHTML = `You have ${formatDecimal(game.stockMarket.paperclips)} ${language.paperclips}.`;
+  document.getElementById("paperclips_desc").innerHTML = language.paperclips_desc;
+  document.getElementById("stonks").innerHTML = `You have ${formatDecimal(game.stockMarket.shares)} ${language.stonks}. The current price of ${language.stonk} is ${formatDecimal(game.stockMarket.price)}.`;
+  document.getElementById("stonk_buy1").innerHTML = language.buy1;
+  document.getElementById("stonk_buy1").onclick = (() => buyShares(game, 1));
+  document.getElementById("stonk_buy10").innerHTML = language.buy10;
+  document.getElementById("stonk_buy10").onclick = (() => buyShares(game, 10));
+  document.getElementById("stonk_buy100").innerHTML = language.buy100;
+  document.getElementById("stonk_buy100").onclick = (() => buyShares(game, 100));
+  document.getElementById("stonk_sell1").innerHTML = language.sell1;
+  document.getElementById("stonk_sell1").onclick = (() => sellShares(game, 1));
+  document.getElementById("stonk_sell10").innerHTML = language.sell10;
+  document.getElementById("stonk_sell10").onclick = (() => sellShares(game, 10));
+  document.getElementById("stonk_sell100").innerHTML = language.sell100;
+  document.getElementById("stonk_sell100").onclick = (() => sellShares(game, 100));
+
+  document.getElementById("save").innerHTML = language.save;
+  document.getElementById("save").onclick = save;
+  document.getElementById("export").innerHTML = language.export;
+  document.getElementById("export").onclick = () => {
+    navigator.clipboard.writeText(JSON.stringify(game));
+  };
+  document.getElementById("import").innerHTML = language.import;
+  document.getElementById("import").onclick = () => {
+    parseSave(prompt("import save"));
+  };
+
   document.getElementById("tab1").innerHTML = language.tab1;
   document.getElementById("tab1").onclick = () => {
     document.getElementById("main").childNodes.forEach(e => e.hidden = true);
@@ -219,7 +284,17 @@ const initUI = () => {
     document.getElementById("main").childNodes.forEach(e => e.hidden = true);
     document.getElementById("dimupgrades").hidden = false;
   };
+  document.getElementById("tab3").innerHTML = language.tab3;
+  document.getElementById("tab3").hidden = !game.unlocks.tab3;
+  document.getElementById("tab3").onclick = () => {
+    document.getElementById("main").childNodes.forEach(e => e.hidden = true);
+    document.getElementById("stockmarket").hidden = false;
+  };
   document.getElementById("tabOptions").innerHTML = language.options;
+  document.getElementById("tabOptions").onclick = () => {
+    document.getElementById("main").childNodes.forEach(e => e.hidden = true);
+    document.getElementById("options").hidden = false;
+  };
 };
 
 const init = () => {
@@ -235,8 +310,12 @@ const init = () => {
     }
   });
 
+  stockMarketHist.push(game.stockMarket.price.toNumber());
+  drawChart(stockMarketHist);
+
   time = Date.now();
-  update();
+  setTimeout(update, 100);
+  setInterval(stockMarketCycle, 10000, game, stockMarketHist);
   setInterval(save, 10000);
 };
 init();

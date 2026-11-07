@@ -8,6 +8,7 @@
     <div id="topbar">
       <button id="tab1"></button>
       <button id="tab2" hidden="true"></button>
+      <button id="tab3" hidden="true"></button>
       <button id="tabOptions"></buttion>
     </div>
     <div id="main">
@@ -89,9 +90,32 @@
           <button id="infinity_reset"></button>
         </div>
       </div>
+      <div id="stockmarket" hidden="true">
+        <p id="paperclips"></p>
+        <p id="paperclips_desc"></p>
+        <div id="stockchart"></div>
+        <p id="stonks"></p>
+        <div id="trade">
+          <button id="stonk_buy1"></button>
+          <button id="stonk_buy10"></button>
+          <button id="stonk_buy100"></button>
+          <button id="stonk_sell1"></button>
+          <button id="stonk_sell10"></button>
+          <button id="stonk_sell100"></button>
+        </div>
+        <p id="tax" hidden="true"></p>
+      </div>
+      <div id="options">
+        <button id="save"></button>
+        <button id="export"></button>
+        <button id="import"></button>
+      </div>
     </div>
 
     <script type="module" src="./main.js"></script>
+    <script type="module" src="./paperclips.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/break_infinity.js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6"></script>
   </body>
 </html>
